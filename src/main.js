@@ -26,18 +26,22 @@ function analyzeSalesData(data, options) {
     throw new Error('Отсутствуют необходимые функции расчёта');
   }
 
+  // Индексация товаров
   const productIndex = Object.fromEntries(data.products.map(p => [p.sku, p]));
 
+  // Инициализация продавцов
   const sellerStats = data.sellers.map(seller => ({
     seller_id: seller.id,
     name: `${seller.first_name} ${seller.last_name}`,
-    revenue: 0,
+    revenue: 0, // НЕ округляем здесь
     profit: 0,
     sales_count: 0,
     products_sold: {}
   }));
+
   const sellerIndex = Object.fromEntries(sellerStats.map(s => [s.seller_id, s]));
 
+  // Подсчёты
   data.purchase_records.forEach(record => {
     const seller = sellerIndex[record.seller_id];
     if (!seller) return;
@@ -48,11 +52,11 @@ function analyzeSalesData(data, options) {
       const product = productIndex[item.sku];
       if (!product) return;
 
-      const revenue = calculateRevenue(item, product);
+      const revenue = calculateRevenue(item, product); // ← без округления
       const cost = product.purchase_price * item.quantity;
       const profit = revenue - cost;
 
-      seller.revenue += revenue;
+      seller.revenue += +revenue.toFixed(2);
       seller.profit += profit;
 
       if (!seller.products_sold[item.sku]) {
@@ -65,6 +69,7 @@ function analyzeSalesData(data, options) {
   // Сортировка по прибыли
   sellerStats.sort((a, b) => b.profit - a.profit);
 
+  // Назначаем бонусы и топ-товары
   const totalSellers = sellerStats.length;
   sellerStats.forEach((seller, index) => {
     seller.bonus = calculateBonus(index, totalSellers, seller);
@@ -75,11 +80,11 @@ function analyzeSalesData(data, options) {
       .slice(0, 10);
   });
 
-  // Округление только в финальной сборке
+  // Финальный результат — округление только здесь
   return sellerStats.map(seller => ({
     seller_id: seller.seller_id,
     name: seller.name,
-    revenue: +seller.revenue.toFixed(2),
+    revenue: +seller.revenue.toFixed(2), // ← округляем тут
     profit: +seller.profit.toFixed(2),
     sales_count: seller.sales_count,
     top_products: seller.top_products,
